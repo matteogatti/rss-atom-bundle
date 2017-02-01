@@ -206,6 +206,47 @@ If the reclaimed feed does not exist, you just need to throw a FeedNotFoundExcep
 
 More information on the FeedContentProviderInterface interface and how to interface rss-atom-bundle directly with doctrine can be found in the [Providing Feeds section](https://github.com/alexdebril/rss-atom-bundle/wiki/Providing-feeds)
 
+## Override tip
+It could happen that according to the order of the bundles present in `AppKernel`, this override procedures do not work properly. For example, our bundle with our custom service, is called before the `rss-atom-bundle`.
+In this case, you should use the Symfony `CompilerPass` as reported in the [documentation](http://symfony.com/doc/current/bundles/override.html#services-configuration).
+
+In my `AppBundle/AppBundle.php`:
+```php
+use AppBundle\DependencyInjection\Compiler\OverrideRssAtomBundleProviderCompilerPass;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\HttpKernel\Bundle\Bundle;
+
+class AppBundle extends Bundle
+{
+    public function build(ContainerBuilder $container)
+    {
+        parent::build($container);
+        $container->addCompilerPass(new OverrideRssAtomBundleProviderCompilerPass());
+    }
+}
+```
+
+and in my `AppBundle\DependencyInjection\Compiler\OverrideRssAtomBundleProviderCompilerPass.php`:
+```php
+use AppBundle\Provider\FeedProvider;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Reference;
+
+class OverrideRssAtomBundleProviderCompilerPass implements CompilerPassInterface
+{
+    public function process(ContainerBuilder $container)
+    {
+        $definition = $container->getDefinition('debril.provider.default');
+        $definition->setClass(FeedProvider::class);
+        $definition->addArgument(new Reference('my.service1'));
+        $definition->addArgument(new Reference('my.service2'));
+    }
+}
+```
+In this way i can remove the service from `services.xml` and avoid surprises.
+
+
 ## Useful Tips
 
 ### Skipping 304 HTTP Code
